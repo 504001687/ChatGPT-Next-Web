@@ -53,7 +53,7 @@ import chatStyle from "./chat.module.scss";
 
 import { ListItem, Modal, showModal } from "./ui-lib";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Path } from "../constant";
+import { LAST_INPUT_KEY, Path } from "../constant";
 import { Avatar } from "./emoji";
 import { MaskAvatar, MaskConfig } from "./mask";
 import { useMaskStore } from "../store/mask";
@@ -230,7 +230,9 @@ export function PromptHints(props: {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (noPrompts) return;
-
+      if (e.metaKey || e.altKey || e.ctrlKey) {
+        return;
+      }
       // arrow up / down to select prompt
       const changeIndex = (delta: number) => {
         e.stopPropagation();
@@ -404,7 +406,6 @@ export function Chat() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [userInput, setUserInput] = useState("");
-  const [beforeInput, setBeforeInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { submitKey, shouldSubmit } = useSubmitHandler();
   const { scrollRef, setAutoScroll, scrollToBottom } = useScrollToBottom();
@@ -477,7 +478,7 @@ export function Chat() {
     if (userInput.trim() === "") return;
     setIsLoading(true);
     chatStore.onUserInput(userInput).then(() => setIsLoading(false));
-    setBeforeInput(userInput);
+    localStorage.setItem(LAST_INPUT_KEY, userInput);
     setUserInput("");
     setPromptHints([]);
     if (!isMobileScreen) inputRef.current?.focus();
@@ -491,9 +492,13 @@ export function Chat() {
 
   // check if should send message
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // if ArrowUp and no userInput
-    if (e.key === "ArrowUp" && userInput.length <= 0) {
-      setUserInput(beforeInput);
+    // if ArrowUp and no userInput, fill with last input
+    if (
+      e.key === "ArrowUp" &&
+      userInput.length <= 0 &&
+      !(e.metaKey || e.altKey || e.ctrlKey)
+    ) {
+      setUserInput(localStorage.getItem(LAST_INPUT_KEY) ?? "");
       e.preventDefault();
       return;
     }
@@ -503,11 +508,6 @@ export function Chat() {
     }
   };
   const onRightClick = (e: any, message: Message) => {
-    // auto fill user input
-    if (message.role === "user") {
-      setUserInput(message.content);
-    }
-
     // copy to clipboard
     if (selectOrCopy(e.currentTarget, message.content)) {
       e.preventDefault();
@@ -618,6 +618,39 @@ export function Chat() {
       doSubmit(text);
     },
   });
+
+  const UPSCALE = (messages: Message, index: any) => {
+    setIsLoading(true);
+    if (!messages.clickedList) {
+      messages.clickedList = [];
+    }
+    messages.clickedList.push("u" + index);
+    let opMsg = `/mj UPSCALE|${messages.imageId}|${index}`;
+    chatStore.onUserInput(opMsg).then(() => setIsLoading(false));
+    scrollToBottom();
+  };
+
+  const VARIATION = (messages: Message, index: any) => {
+    setIsLoading(true);
+    if (!messages.clickedList) {
+      messages.clickedList = [];
+    }
+    messages.clickedList.push("v" + index);
+    let opMsg = `/mj VARIATION|${messages.imageId}|${index}`;
+    chatStore.onUserInput(opMsg).then(() => setIsLoading(false));
+    scrollToBottom();
+  };
+
+  const RESET = (messages: Message) => {
+    setIsLoading(true);
+    if (!messages.clickedList) {
+      messages.clickedList = [];
+    }
+    messages.clickedList.push("r");
+    let opMsg = `/mj RESET|${messages.imageId}`;
+    chatStore.onUserInput(opMsg).then(() => setIsLoading(false));
+    scrollToBottom();
+  };
 
   return (
     <div className={styles.chat} key={session.id}>
@@ -779,6 +812,120 @@ export function Chat() {
                     <div className={styles["chat-message-action-date"]}>
                       {message.date.toLocaleString()}
                     </div>
+                    {message.type && message.type == "imageResult" && (
+                      <div>
+                        <div className={styles["imageResult"]}>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("u1")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => UPSCALE(message, 1)}
+                          >
+                            U 1
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("u2")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => UPSCALE(message, 2)}
+                          >
+                            U 2
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("u3")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => UPSCALE(message, 3)}
+                          >
+                            U 3
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("u4")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => UPSCALE(message, 4)}
+                          >
+                            U 4
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("v1")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => VARIATION(message, 1)}
+                          >
+                            V 1
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("v2")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => VARIATION(message, 2)}
+                          >
+                            V 2
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("v3")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => VARIATION(message, 3)}
+                          >
+                            V 3
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("v4")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => VARIATION(message, 4)}
+                          >
+                            V 4
+                          </button>
+                          <button
+                            className={
+                              message.clickedList
+                                ? message.clickedList.includes("r")
+                                  ? styles["imageResultBntClick"]
+                                  : styles["imageResultBnt"]
+                                : ""
+                            }
+                            onClick={() => RESET(message)}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -795,7 +942,14 @@ export function Chat() {
           scrollToBottom={scrollToBottom}
           hitBottom={hitBottom}
           showPromptHints={() => {
+            // Click again to close
+            if (promptHints.length > 0) {
+              setPromptHints([]);
+              return;
+            }
+
             inputRef.current?.focus();
+            setUserInput("/");
             onSearch("");
           }}
         />
